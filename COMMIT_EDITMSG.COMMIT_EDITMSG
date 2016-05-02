@@ -1,0 +1,990 @@
+This Commit includes many changes to the login registration, ingredient pages, recipe pages and api calls to the USDA database for nutritional information.
+
+# --------------
+# Please enter the commit message for your changes. Everything below
+# this paragraph is ignored, and an empty message aborts the commit.
+# Just close the window to accept your message.
+diff --git a/application/config/routes.php b/application/config/routes.php
+index be6c280..13d32a4 100644
+--- a/application/config/routes.php
++++ b/application/config/routes.php
+@@ -39,12 +39,16 @@
+ */
+ 
+ $route['default_controller'] = "cloudrecipes";
++$route['goto_register'] = "cloudrecipes/goto_register";
+ $route['register'] = "cloudrecipes/register";
+ $route['signin'] = "cloudrecipes/signin_process";
+ $route['logout'] = "cloudrecipes/logout";
+ $route['new_ingredient'] = "cloudrecipes/new_ingredient_view";
+ $route['add_new_ingr'] = "cloudrecipes/add_ingredients";
+-
++$route['add_recipe'] = "cloudrecipes/add_recipe_view";
++$route['create_recipe'] = "cloudrecipes/add_recipes";
++$route['view_ingredients'] = "cloudrecipes/view_ingredients";
++$route['get_recipe_lists'] = "cloudrecipes/get_recipe_lists";
+ $route['404_override'] = '';
+ 
+ 
+diff --git a/application/controllers/CloudRecipes.php b/application/controllers/CloudRecipes.php
+index f795476..74f157a 100644
+--- a/application/controllers/CloudRecipes.php
++++ b/application/controllers/CloudRecipes.php
+@@ -4,21 +4,136 @@
+ class CloudRecipes extends CI_Controller{
+ 
+ 	public function index () {
+-			$this->load->library('form_validation');
+-			// $this->load->view('new_ingredient');
+-			redirect('/new_ingredient');
++		$this->load->library('form_validation');
++		$this->load->view('main');
+ 		}
+ 
++	public function goto_register(){
++		$this->load->library('form_validation');
++		$this->load->view('register');
++	}
++
++	public function view_ingredients(){
++		$logged_info = $this->session->userdata('logged_info');
++		$this->load->model('cloudrecipe');
++		$list = $this->cloudrecipe->get_ingr_list($logged_info['restaurants_id']);
++		$this->load->view('view_ingredients', ['ingr_list' => $list]);
++	}
+ 	public function new_ingredient_view () {
+-			$this->load->library('form_validation');
+-			$this->load->model('cloudrecipe');
+-			$ingr_cat_list = $this->cloudrecipe->get_ingr_category();
+-			$this->load->view('new_ingredient', ['ingr_cat_list' => $ingr_cat_list]);
++		$this->load->library('form_validation');
++		$this->load->model('cloudrecipe');
++		$ingr_cat_list = $this->cloudrecipe->get_ingr_category();
++		$this->load->view('new_ingredient', ['ingr_cat_list' => $ingr_cat_list]);
++	}
++	public function add_recipe_view () {
++		$logged_info = $this->session->userdata('logged_info');
++		$this->load->library('form_validation');
++		$this->load->model('cloudrecipe');
++		$list = $this->cloudrecipe->get_ingr_list($logged_info['restaurants_id']);
++		$unitlist = $this->cloudrecipe->get_units_list();
++		$recCatlist = $this->cloudrecipe->get_recipe_cat();
++		$this->load->view('new_recipe', ['ingr_list' => $list, 'unit_list' => $unitlist, 'rec_cat_list' => $recCatlist]);
++	}
++	public function add_recipes(){
++		$this->load->library('form_validation');
++		$logged_info = $this->session->userdata('logged_info');
++		$values = $this->input->post();
++		$values['user_id'] = $logged_info['user_id'];
++		$values['restaurants_id'] = $logged_info['restaurants_id'];
++		$this->load->model('cloudrecipe');
++		$this->cloudrecipe->add_recipe($values);
++		redirect('/add_recipe');
++	}
++
++	public function get_recipe_lists(){
++		$logged_info = $this->session->userdata('logged_info');
++		$this->load->model('cloudrecipe');
++		$recipelist = $this->cloudrecipe->get_recipe_list($logged_info['restaurants_id']);
++		$this->load->view('view_recipe_list', ['recipelist' => $recipelist]);
++	}
++	public function ingr_list_api() {
++		$this->load->library('form_validation');
++		$this->load->model('cloudrecipe');
++		$list = $this->cloudrecipe->get_ingr_list();
++		$this->load->view('ingr_list_data', ['ingr_list' => $list]);
++	}
++
++	public function units_list($num) {
++		$this->load->library('form_validation');
++		$this->load->model('cloudrecipe');
++		$list = $this->cloudrecipe->get_units_list();
++		return $list;
+ 	}
+ 
+ 	public function add_ingredients () {
+-			$this->load->model('cloudrecipe');
++		$logged_info = $this->session->userdata('logged_info');
++		$values = $this->input->post();
++		$values['user_id'] = $logged_info['user_id'];
++		$values['restaurants_id'] = $logged_info['restaurants_id'];
++		$this->load->model('cloudrecipe');
++		$this->cloudrecipe->add_ingredient($values);
++		redirect('/view_ingredients');
++	}
++
+ 
++	public function register(){
++		$this->load->library('form_validation');
++		$this->load->helper('security');
++		$this->form_validation->set_rules("email", "E-Mail", "trim|required|valid_email");
++		$this->form_validation->set_rules("confirmpass", "Confirm Password", "trim|required|matches[password]");
++		$this->form_validation->set_rules("password", "Password", "trim|required|min_length[8]|do_hash");
++		$this->form_validation->set_rules("fname", "First Name", "trim|required|min_length[3]|xss_clean");
++		$this->form_validation->set_rules("lname", "Last Name", "trim|required|min_length[3]|xss_clean");
++		$this->form_validation->set_rules("restaurant", "Restaurant", "trim|required|min_length[3]|xss_clean");
++		$this->form_validation->set_rules("address", "Restaurant Address", "trim|required|xss_clean");
++			$this->form_validation->set_rules("city", "City", "trim|required|xss_clean");
++		$this->form_validation->set_rules("state", "State", "required");
++		$this->form_validation->set_rules("zip", "Zip Code", "required|max_length[10]|numeric|xss_clean");
++		$this->form_validation->set_rules("phone", "Phone Number", "required|max_length[10]|numeric|xss_clean");
++		if($this->form_validation->run() === FALSE){
++			$this->load->view('main');
++		}
++		else{
++			$this->load->model("cloudrecipe");
++			$form_info = $this->input->post();
++			$add_restaurant = $this->cloudrecipe->register_restaurant($form_info);
++			if ($add_restaurant){
++				$this->session->set_userdata(['logged_info' => $add_restaurant]);
++				redirect("/get_recipe_lists");
++			}
++			else{
++				$this->session->set_flashdata("login_error", "This Restaurant is already setup. Please contact your restaurants' RecipeNimbus admin to register.");
++				redirect('/');
++			}
++		}
++	}
++	public function signin_process(){
++		$this->load->library('form_validation');
++		$this->load->helper('security');
++		$this->form_validation->set_rules("email2", "E-Mail", "trim|required|valid_email");
++		$this->form_validation->set_rules("restaurant2", "Restaurant", "trim|required|min_length[3]|xss_clean");
++		$this->form_validation->set_rules("password2", "Password", "trim|required|min_length[8]|do_hash");
++
++		if($this->form_validation->run() == FALSE){
++			$this->load->view('main');
++		}
++		else {
++			$this->load->model('cloudrecipe');
++			$user_info = $this->input->post();
++			$user_signin = $this->cloudrecipe->signin($user_info);
++			if($user_signin) {
++				$this->session->set_userdata(['logged_info' => $user_signin]);
++				redirect('/get_recipe_lists');
++			}
++			else {
++				$this->session->set_flashdata("login_error", "The E-Mail, Restaurant, or Password information is incorrect.");
++				redirect('/');
++			}
++		}
++	}
++	public function logout (){
++		$this->session->sess_destroy();
++		redirect('/');
+ 	}
+ 
+ }
+diff --git a/application/models/cloudrecipe.php b/application/models/cloudrecipe.php
+index 38c5b75..7769743 100644
+--- a/application/models/cloudrecipe.php
++++ b/application/models/cloudrecipe.php
+@@ -3,6 +3,73 @@
+ 
+ class CloudRecipe extends CI_Model {
+ 
++	public function add_user($user_info){
++		
++		$query3 = "SELECT id FROM restaurants WHERE restaurants.name = ?";
++		$info = [$user_info['restaurant']];
++		$rest_info = $this->db->query($query3, $info)->row_array();
++		$query = "INSERT INTO users(first_name, last_name, email, password, created_on, updated_on, restaurants_id) VALUES(?, ?, ?, ?, now(), now(), ?)";
++
++		$user = [$user_info['fname'], $user_info['lname'], $user_info['email'], $user_info['password'], $rest_info['id']];
++		$query2 = "SELECT users.id AS user_id, first_name, last_name, email, restaurants_id from users JOIN restaurants ON users.restaurants_id = restaurants.id WHERE email = ? AND restaurants.name = ?";
++		$user2 = [$user_info['email'], $user_info['restaurant']];
++		if($this->db->query($query2, $user2)->row_array() == null){
++			$this->db->query($query, $user);
++			return $this->db->query($query2, $user2)->row_array();
++		}
++		else {
++			return FALSE;
++		}
++	}
++
++	public function register_restaurant($form_info){
++		
++		$query = "SELECT restaurants.name FROM restaurants WHERE restaurants.name = ?";
++		$info = [$form_info['restaurant']];
++		
++		$query2 = "INSERT INTO restaurants(name, address, city, state, zip, phone_number, created_on, updated_on) VALUES(?, ?, ?, ?, ?, ?, now(), now())";
++		$info2 = [$form_info['restaurant'], $form_info['address'], $form_info['city'], $form_info['state'], $form_info['zip'], $form_info['phone']];
++
++		$query3 = "SELECT id FROM restaurants WHERE name = ?";
++		$info3 = [$form_info['restaurant']];
++
++		$query5 = "SELECT users.id FROM users WHERE email = ?";
++		$info5 = [$form_info['email']];
++
++
++		$query7 = "SELECT users.id AS user_id, first_name, last_name, email, restaurants_id from users WHERE email = ?";
++		$info7 = [$form_info['email']];
++
++		if($this->db->query($query, $info)->row_array() == null){
++			$this->db->query($query2, $info2);
++			$rest_id = $this->db->query($query3, $info3)->row_array();
++			$query4 = "INSERT INTO users(first_name, last_name, email, password, created_on, updated_on, restaurants_id) VALUES(?, ?, ?, ?, now(), now(), ?)";
++			$info4 = [$form_info['fname'], $form_info['lname'], $form_info['email'], $form_info['password'], $rest_id['id']];
++			$this->db->query($query4, $info4);
++			$user_id = $this->db->query($query5, $info5)->row_array();
++			$query6 = "UPDATE restaurants SET main_admin_id = ? WHERE id = ?";
++			$info6 = [$user_id['id'], $rest_id['id']];
++			$this->db->query($query6, $info6);
++			return $this->db->query($query7, $info7)->row_array();
++		}
++		else {
++			return FALSE;
++		}
++	}
++
++
++
++
++
++	public function signin($user_info){
++		$query3 = "SELECT id FROM restaurants WHERE restaurants.name = ?";
++		$info = [$user_info['restaurant2']];
++		$rest_info = $this->db->query($query3, $info)->row_array();
++		$query = "SELECT users.id AS user_id, first_name, last_name, email, restaurants_id from users JOIN restaurants ON users.restaurants_id = restaurants.id WHERE email = ? AND password = ? AND users.restaurants_id = ?";
++		$user = [$user_info['email2'], $user_info['password2'], $rest_info['id']];
++		return $this->db->query($query, $user)->row_array();
++	}
++
+ 
+ 	public function get_ingr_category(){
+ 		$query = "SELECT id AS ingr_cat_id, category AS ingr_category FROM ingr_categories";
+@@ -10,10 +77,73 @@ class CloudRecipe extends CI_Model {
+ 	}
+ 
+ 
++	public function add_ingredient ($values){
++		$query = "INSERT INTO ingredients(name, usda_number, ingr_category_id, uom_categories_id, created_on, updated_on, restaurant_id)  VALUES(?, ?, ?, ?, now(), now(), ?)";
++		$info = [$values['ingr_name'], $values['usda_num'], $values['ingr_category'], $values['measure_grp'], $values['restaurants_id']];
++		$this->db->query($query, $info);
++	}
++
++	public function get_ingr_list ($id) {
++		$query = "SELECT ingredients.name, usda_number, uom_categories.category AS uom_type, uom_categories.id AS uom_type_id, ingr_categories.category AS ingr_category, ingredients.id AS ingr_id FROM ingredients JOIN ingr_categories ON ingr_categories.id = ingredients.ingr_category_id JOIN uom_categories ON ingredients.uom_categories_id = uom_categories.id WHERE ingredients.restaurant_id = ? ORDER BY ingredients.name";
++		$info = [$id];
++		return $this->db->query($query, $info)->result_array();
++	}
++
++	public function get_units_list () {
++		$query = "SELECT * FROM units";
++		return $this->db->query($query)->result_array();
++	}
++	public function get_recipe_cat () {
++		$query = "SELECT * FROM recipe_categories";
++		return $this->db->query($query)->result_array();
++	}
++
++
++
+ 
+ 
+ 
+ 
++	public function add_recipe ($values){
++		$rec_info = $values;
++		$query = "INSERT INTO recipes(name, servings, instructions, created_on, updated_on, recipe_category_id, user_id, restaurant_id) VALUES(?, ?, ?, now(), now(), ?, ?, ?)";
++
++		$info = [$rec_info['recipe_name'], $rec_info['servings'], $rec_info['directions'], $rec_info['rec_cat'], $rec_info['user_id'], $rec_info['restaurants_id']];
++		
++		$this->db->query($query, $info);
++
++		$recipeId = $this->db->insert_id();
++		
++		$information = $values;
++		for ($x = 0; $x < 3; $x++){
++			array_pop($information);
++		}
++
++		$ingr_in_rec = [];
++		foreach ($information as $key => $value) {
++		 	if($key !='recipe_name' AND $key != 'servings' AND $key != 'rec_cat' ){
++		 		$ingr_in_rec[] = $value;
++		 	}
++		 }
++		 $ing = [$recipeId];
++		 for ($i = 0; $i < count($ingr_in_rec); $i+=3){
++		 	for($j = $i; $j < $i+3; $j++){
++		 		$ing[] = $ingr_in_rec[$j];
++		 	}
++		 	$query2 = "INSERT INTO ingredients_in_recipes(recipes_id, ingredients_id, amount, units_id, created_on, updated_on) VALUES(?, ?, ?, ?, now(), now())";
++		 	$this->db->query($query2, $ing);
++			$ing = [$recipeId];
++		 }
++	}
++
++	public function get_recipe_list ($id){
++		$query = "SELECT recipes.id AS recipe_id, name, servings, category FROM recipes JOIN recipe_categories ON recipe_categories.id = recipes.recipe_category_id WHERE recipes.restaurant_id = ?";
++		$info = [$id];
++		return $this->db->query($query, $info)->result_array();
++	}
++
++
+ }
+ 
++
+ ?>
+\ No newline at end of file
+diff --git a/application/views/login_register.php b/application/views/login_register.php
+deleted file mode 100644
+index 07e61c4..0000000
+--- a/application/views/login_register.php
++++ /dev/null
+@@ -1,52 +0,0 @@
+-<?php 
+-$login_error = $this->session->flashdata('login_error');
+- ?>
+- <!DOCTYPE html>
+- <html lang="en">
+- <head>
+- 	<meta charset="UTF-8">
+- 	<meta name="author" content="Jonathan Ben-Ammi">
+- 	<title>Favorie Quotes</title>
+- 	<meta name="description" content="">
+- 	<link rel="stylesheet" type="text/css" href="/assets/css/style.css">
+- </head>
+- <body>
+- 	 	<div id="container">
+- 		<h3>Welcome to Recipe Binder!</h3>
+-		<?php if(isset($login_error)){ ?>
+-			<p class="warning"><?= $login_error; ?></p>
+-		<?php  } ?>
+-		<fieldset class="login">
+-			<legend>Register</legend> 
+- 		<form id="Register" action="/register" method="post">
+- 					<?php echo form_error('name'); ?>
+-				<label for="name">Name: </label><input type="text" placeholder="John Smith" name="name" />
+- 					<?php echo form_error('alias'); ?>
+-                <label for="username">Alias: </label><input type="text" placeholder="Johnny" name="alias" />
+- 					<?php echo form_error('email'); ?>
+-                <label for="email">E-Mail: </label><input type="text" placeholder="something@something.com" name="email" />
+- 					<?php echo form_error('password'); ?>
+-				<label for="password">Password: </label><input type="password" placeholder="********" name="password" />
+-				<p class="warning">*Password should be at least 8 characters</p>
+- 					<?php echo form_error('confirmpass'); ?>
+-				<label for="confirmpass">Confirm PW: </label><input type="password" placeholder="********" name="confirmpass" />
+- 					<?php echo form_error('birthdate'); ?>
+-				<label for="birthdate">Birthdate: </label><input type="date" placeholder="12/27/1978" name="birthdate" />
+-
+-				<input class="button2" type="submit" value="Register" />
+- 		</form>
+-		</fieldset>
+-		<fieldset class="login">
+-			<legend>Login</legend>
+- 		<form id="login" action="/signin" method="post">
+- 					<?php echo form_error('email2'); ?>
+-                <label for="email">E-Mail: </label><input type="text" placeholder="something@something.com" name="email2" />
+- 					<?php echo form_error('password2'); ?>
+-                <label for="password">Password: </label><input type="password" placeholder="********" name="password2" />
+-                <input class="button2"type="submit" name="action" value="Login" />
+-                </form>
+- 		</form>
+-		</fieldset>
+- 	</div>
+- </body>
+- </html>
+\ No newline at end of file
+diff --git a/application/views/new_ingredient.php b/application/views/new_ingredient.php
+index 178e447..7dc3b04 100644
+--- a/application/views/new_ingredient.php
++++ b/application/views/new_ingredient.php
+@@ -10,24 +10,31 @@
+  	<title></title>
+  	<meta name="description" content="">
+  	<link rel="stylesheet" type="text/css" href="/assets/css/materialize.css">
+- 	<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
++ 	<link rel="stylesheet" type="text/css" href="/assets/css/style.css">
++	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
++
++<!-- 	<link rel="stylesheet" href="/assets/css/materialize_icons.css">
++ -->
+ 
+  </head>
+- <body>
+- 	<div class="container">
++ <body id="backgroundbody">
+ 		<nav>
+-			<div class="nav-wrapper teal">
+-			<a href="#" class="brand-logo light"><dfn>RECIPE BINDER</dfn></a>
++			<div class="nav-wrapper blue-grey">
++			<a href="#" class="brand-logo light"><dfn>RecipeNimbus</dfn></a>
+ 				<ul id="nav-mobile" class="right hide-on-med-and-down">
+-					<li><a href="sass.html">Sass</a></li>
+-					<li><a href="badges.html">Components</a></li>
+-					<li><a href="collapsible.html">JavaScript</a></li>
++					<li><a href="/get_recipe_lists">Recipe List</a></li>
++					<li><a href="/new_ingredient">New Ingredient</a></li>
++					<li><a href="/view_ingredients">View Ingredients</a></li>
++					<li><a href="/add_recipe">Add Recipe</a></li>
++					<li><a href="/logout">Logout</a></li>
+ 				</ul>
+ 			</div>
+ 		</nav>
+-		<div class="row">
++ 	<div class="container row white">
++		<div class="row col s6">
+ 			<h4 class="teal-text">Add New Ingredient</h4>
+-			<form class="col s6" action="/add_new_ingr">
++			<div class="row">
++			<form id="add_ingredient" class="col s12" action="/add_new_ingr" method="post">
+ 	        <div class="row">
+ 				<div class="input-field col s12">
+  					<?php echo form_error('name'); ?>
+@@ -37,7 +44,7 @@
+ 			</div>
+ 				<label for="ingr_category">Ingredient Category:</label>
+ 				<select name="ingr_category">
+-				<option value="" disabled selected>Choose your option</option>
++				<option value="" disabled selected>Select a category</option>
+ 					<?php for ($arrayopt = 0; $arrayopt < count($ingr_cat_list); $arrayopt++){ ?>
+ 					<option value="<?= $ingr_cat_list[$arrayopt]['ingr_cat_id']; ?>"><?= $ingr_cat_list[$arrayopt]['ingr_category']; ?></option>
+ 				<?php	} ?>
+@@ -51,7 +58,6 @@
+ 				<label for="piece">Piece</label>
+ 				<br>
+ 				<br>
+-
+ 	        <div class="row">
+ 				<div class="input-field col s12">
+  					<?php echo form_error('usda'); ?>
+@@ -59,28 +65,60 @@
+ 				<input type="text" placeholder="11065" name="usda_num" length="6"/>
+ 				</div>
+ 			</div>
+-
++				<button class="btn waves-effect waves-light blue-grey" type="submit" name="action">Add<i class="material-icons right">note_add</i></button>
+ 			</form>
+-			<div class="col s5 offset-s1 blue">
+-				sdfa
+ 			</div>
+ 		</div>
++		<div class="row col s6">
++			<h4 class="blue-grey-text">Search USDA Database</h4>
++			<div>
++				<form id="search_usda" action="" method="post">
++					<label for="ingr_search">Ingredient:</label>
++					<input type="text" placeholder="butter" id="ingr_search" />
++					<button class="btn waves-effect waves-light blue-grey" type="submit" name="action">Search<i class="material-icons right">input</i></button>
++				</form>
++ 			</div>		
++			<div id="usda_list">
++			
++			</div>
++		</div>
++	</div>
+ 
+-
+-
+-
+- 	</div>
+  	<!-- Scripts -->
+  	<script src="/assets/js/jquery-2.2.3.js"></script>
+  	<script src="/assets/js/materialize.js"></script>
+  	<script type="text/javascript">
+  	$(document).ready(function() {
+ 
+-    $('select').material_select();
++    // $('select').material_select();
+ 
+     $('input#input_text, textarea#textarea1').characterCounter();
+ 
+ 
++	$('#search_usda').submit(function() {
++        var result = $('#ingr_search').val();
++        var new_url = "http://api.nal.usda.gov/ndb/search/?format=json&q=";
++        new_url += result;
++        new_url += "&sort=n&offset=0&api_key=cy5UKYS7bNXlwzTdEZSESbNs4jmXQsGDPI8Ebjzi";
++        console.log(new_url);
++        $.get(new_url, function(res) {
++        	console.log(res.list.item.length);
++            var something = res.list.item;
++            var list = "";
++            list += "<ul>";
++            for(var i = 0; i < something.length; i++){
++            	list += "<li>" + something[i].ndbno + " " + something[i].name + "</li>"
++            }
++            list += "<warning: LF will be replaced by CRLF in application/config/routes.php.
+The file will have its original line endings in your working directory.
+/ul>"
++            $("#usda_list").html(list);
++            console.log(list);
++
++        }, 'json');
++        // don't forget to return false so the page doesn't refresh
++        return false;
++    });
++
++
+   });
+ 	</script>
+ </body>
+diff --git a/application/views/user_quotes.php b/application/views/user_quotes.php
+deleted file mode 100644
+index 6b2c66e..0000000
+--- a/application/views/user_quotes.php
++++ /dev/null
+@@ -1,41 +0,0 @@
+-<?php 
+-
+- ?>
+-
+- <!DOCTYPE html>
+- <html lang="en">
+- <head>
+- 	<meta charset="UTF-8">
+- 	<meta name="author" content="Jonathan Ben-Ammi">
+- 	<title></title>
+- 	<meta name="description" content="">
+- 	<link rel="stylesheet" type="text/css" href="/assets/css/style.css">
+-
+- </head>
+- <body>
+- 	<div id="container">
+- 		<div class="header_links">
+- 			<ul>
+- 				<li><a href="/dashboard">Dashboard</a></li>
+- 				<li> | </li>		
+- 				<li><a href="/logout">Logout</a></li>
+- 			</ul>
+- 		</div>
+- 		<h2>Posts by <?= $quote_list[0]['alias']; ?></h2>
+- 		<h3>Count <?php 
+- 				$count = 0;
+- 				for ($quote_array = 0; $quote_array < count($quote_list); $quote_array ++){
+- 					$count ++;
+- 				}
+- 				echo $count; ?></h3>
+-
+- 		<?php 
+- 			for ($quote_array = 0; $quote_array < count($quote_list); $quote_array ++) { ?>
+- 			<div class="single_quote">
+- 				<p><span><?= $quote_list[$quote_array]['quoted_by']; ?>:</span> <?= $quote_list[$quote_array]['quote']; ?></p>
+- 			</div>
+- 		<?php	}	?>	
+-
+- 	</div>
+- </body>
+- </html>
+\ No newline at end of file
+diff --git a/assets/css/materialize.css b/assets/css/materialize.css
+index dd6d7d8..01bf6d1 100644
+--- a/assets/css/materialize.css
++++ b/assets/css/materialize.css
+@@ -3025,7 +3025,7 @@ thead {
+ }
+ 
+ td, th {
+-  padding: 15px 5px;
++  padding: 5px 5px;
+   display: table-cell;
+   text-align: left;
+   vertical-align: middle;
+@@ -3430,7 +3430,7 @@ input[type=range] + .thumb {
+ 
+ .container {
+   margin: 0 auto;
+-  max-width: 1280px;
++  max-width: 1366px;
+   width: 90%;
+ }
+ 
+@@ -4212,7 +4212,7 @@ nav .input-field {
+ 
+ nav .input-field input {
+   height: 100%;
+-  font-size: 1.2rem;
++  font-size: 1rem;
+   border: none;
+   padding-left: 2rem;
+ }
+@@ -4227,7 +4227,7 @@ nav .input-field label {
+   left: 0;
+ }
+ 
+-nav .input-field label i {
++nav .input-field label i, .label {
+   color: rgba(255, 255, 255, 0.7);
+   transition: color .3s;
+ }
+@@ -4782,7 +4782,7 @@ small {
+ }
+ 
+ .tabs .tab a {
+-  color: #ee6e73;
++  color: #607d8b;
+   display: block;
+   width: 100%;
+   height: 100%;
+@@ -4792,7 +4792,7 @@ small {
+ }
+ 
+ .tabs .tab a:hover {
+-  color: #f9c9cb;
++  color: #B0C1C8;
+ }
+ 
+ .tabs .tab.disabled a {
+@@ -4803,8 +4803,8 @@ small {
+ .tabs .indicator {
+   position: absolute;
+   bottom: 0;
+-  height: 2px;
+-  background-color: #f6b2b5;
++  height: 5px;
++  background-color: #B0C1C8;
+   will-change: left, right;
+ }
+ 
+@@ -4926,7 +4926,22 @@ small {
+   cursor: pointer;
+   vertical-align: middle;
+ }
+-
++.btn-floating-sml {
++  display: inline-block;
++  color: #fff;
++  position: relative;
++  overflow: hidden;
++  z-index: 1;
++  width: 20px;
++  height: 20px;
++  line-height: 20px;
++  padding: 0;
++  background-color: #26a69a;
++  border-radius: 50%;
++  transition: .3s;
++  cursor: pointer;
++  vertical-align: middle;
++}
+ .btn-floating i {
+   width: inherit;
+   display: inline-block;
+@@ -4935,12 +4950,19 @@ small {
+   font-size: 1.6rem;
+   line-height: 37px;
+ }
+-
+-.btn-floating:hover {
++.btn-floating-sml i {
++  width: inherit;
++  display: inline-block;
++  text-align: center;
++  color: #fff;
++  font-size: 1rem;
++  line-height: 20px;
++}
++.btn-floating:hover, .btn-floating-sml:hover{
+   background-color: #26a69a;
+ }
+ 
+-.btn-floating:before {
++.btn-floating:before, .btn-floating-sml:before {
+   border-radius: 0;
+ }
+ 
+@@ -4953,7 +4975,7 @@ small {
+   line-height: 55.5px;
+ }
+ 
+-button.btn-floating {
++button.btn-floating, button.btn-floating-sml {
+   border: none;
+ }
+ 
+@@ -5476,8 +5498,8 @@ button:focus {
+ }
+ 
+ label, .label {
+-  font-size: 0.8rem;
+-  color: #9e9e9e;
++  font-size: 0.9rem;
++  color: #727272;
+ }
+ 
+ /* Text Inputs + Textarea
+@@ -5520,7 +5542,7 @@ textarea.materialize-textarea {
+   border-bottom: 1px solid #9e9e9e;
+   border-radius: 0;
+   outline: none;
+-  height: 3rem;
++  height: 2rem;
+   width: 100%;
+   font-size: 1rem;
+   margin: 0 0 15px 0;
+@@ -6315,21 +6337,21 @@ input[type=checkbox]:not(:disabled).tabbed:focus ~ .lever::after {
+ 
+ /* Select Field
+    ========================================================================== */
+-select {
++/*select {
+   display: none;
+-}
++}*/
+ 
+ select.browser-default {
+   display: block;
+ }
+ 
+ select {
+-  background-color: rgba(255, 255, 255, 0.9);
++  background-color: none;
+   width: 100%;
+   padding: 5px;
+-  border: 1px solid #f2f2f2;
++  border: none;
+   border-radius: 2px;
+-  height: 3rem;
++  height: 2rem;
+ }
+ 
+ .select-label {
+diff --git a/assets/css/style.css b/assets/css/style.css
+index d8bde6c..a43a827 100644
+--- a/assets/css/style.css
++++ b/assets/css/style.css
+@@ -1,120 +1,131 @@
+-* {
+-	padding: 0px;
+-	margin: 0%;
+-	font-family: arial, sans-serif;
++select {
++	border-bottom: 1px solid #9e9e9e;
+ }
+ 
+-#container {
+-	width: 80%;
+-	margin: 2% auto;
++html {
++	height: 100%;
+ }
+-
+-.header_links {
+-	text-align: right;
++body {
++	min-height: 100%;
+ }
+ 
+-ul li {
+-	list-style: none;
+-	display: inline-block;
++#newrecbody {
++	background: url('/assets/img/photo-1446611720526-39d16597055c.jpg');
++	background-size: cover;
++	background-position: center;
++	background-repeat: no-repeat;
+ }
+ 
+-h2, h3	{
+-	padding-bottom: 20px;
++#loginbody {
++	background: url('/assets/img/photo-1428515613728-6b4607e44363.jpg');
++	background-size: cover;
++	background-position: top;
++	background-repeat: no-repeat;
+ }
+-
+-
+-fieldset.dash_field {
+-	display: inline-block;
+-	vertical-align: top;
+-	width: 30%;
+-	padding: 10px;
++#backgroundbody {
++	background: url('/assets/img/board_1.jpg');
++	background-size: cover;
++	background-position: top;
++	background-repeat: no-repeat;
+ }
+-fieldset.dash_field:nth-child(4) {
+-	margin-left: 20%;
++#recipeListBody {
++	background: url('/assets/img/tomatoes.jpg');
++	background-size: cover;
++	background-position: top;
++	background-repeat: no-repeat;
++}
++#newIngrBody {
++	background: url('/assets/img/bluecheese.jpg');
++	background-size: cover;
++	background-position: top;
++	background-repeat: no-repeat;
++}
++#viewIngrBody {
++	background: url('/assets/img/almonds.jpg');
++	background-size: cover;
++	background-position: top;
++	background-repeat: no-repeat;
+ }
+ 
+-fieldset.login {
+-	width: 28%;
+-	display: inline-block;
+-	vertical-align: top;
+-	padding: 10px;
++
++form {
++	padding: 20px;
+ }
+-fieldset.login:last-child {
+-	margin-left: 10%;
++
++div #backdiv {
++	padding: 0px;
+ }
+- .warning {
+- 	padding-bottom: 10px;
+- 	font-size: 0.8rem;
+- }
+ 
++#containerMain.container{
++	margin-top: 8%;
++}
+ 
+ 
+-#quotes_left {
+-	height: 375px;
+-	overflow-y: scroll;
++#usda_list {
++	height: 500px;
++	overflow: scroll;
++	white-space: nowrap;
++	margin-top: 2%;
++	font-size: .8rem;
+ }
+-#quotes_right {
+-	height: 300px;
++
++#usda_info {
++	height: 500px;
+ 	overflow-y: scroll;
++	margin-top: 2%;
++	font-size: .8rem;
+ }
+ 
+-#new_quote {
+-	display: inline-block;
+-	width: 30%;
+-	margin-left: 55%;
++#usda_header {
++	height: 75px;
++	overflow: hidden;
++	margin-top: 2%;
++	font-size: .8rem;
+ }
+ 
+-label {
+-	display: inline-block;
+-	width: 40%;
+-	padding-bottom: 10px;
++#usda_header th:first-child, {
++	width: 347px;
+ }
+ 
++#usda_header th:nth-child(2) {
++	width: 73px;
++}
+ 
++/*div {
++	border: 1px dotted green;
++}*/
+ 
+-.quote {
+-	width: 95%;
+-	padding-bottom: 20px;
++.ingr, .amt, .unit{
++	display: inline-block;
++	vertical-align: top;
+ }
+ 
+-.message {
+-	padding-bottom: 10px;
+-}
+ 
+-.posted_by {
+-	font-size: 0.8rem;
+-	width: 50%;
+-	display: inline-block;
+-	vertical-align: bottom;
++#TextBoxesGroup {
++	margin-left: -3rem;
+ }
+ 
+-.message span {
+-	font-weight: bold;
++.ingr_div, .ingr, .amt, .unit {
++margin: 0px;
++padding: 0px;
+ }
+ 
+-.button {
+-	border-radius: 5px;
+-	padding: 5px;
+-	background: blue;
+-	color: white;
+-	border: none;	
++.ingr_title {
++	margin-bottom: 0px;
++	padding-bottom: 0px;
++}
++.amt input {
++	margin: 0px;
+ }
+ 
+-.button2 {
+-	display: inline-block;
+-	margin-left: 75%;
+-	border-radius: 5px;
+-	padding: 5px;
+-	background: bluwarning: LF will be replaced by CRLF in assets/css/materialize.css.
+The file will have its original line endings in your working directory.
+e;
+-	color: white;
+-	border: none;
++.v-scroll {
++	overflow-y: scroll;
+ }
+ 
+-.single_quote span {
+-	color: red;
++#ingrTable, #recTable {
++	height: 570px;
+ }
+ 
+-.single_quote {
+-	padding-bottom: 20px;
+-	width: 50%;
++#ingrTitles th {
++
+ }
+\ No newline at end of file
+diff --git a/restaurant_recipes.sql b/restaurant_recipes.sql
+index 7eea061..f623d7d 100644
+--- a/restaurant_recipes.sql
++++ b/restaurant_recipes.sql
+@@ -1,12 +1,15 @@
+ SELECT * FROM restaurant_recipies.ingredients;
+ 
+-INSERT INTO ingredients(name, usda_number, ingr_category_id, uom_categories_id, created_on, updated_on) 
+-VALUES('Roma Tomato', '11529', '1', '1', now(), now());
++INSERT INTO ingredients(name, usda_number, ingr_category_id, uom_categories_id, created_on, updated_on, restaurant_id) 
++VALUES('Roma Tomato', '11529', '1', '1', now(), now(), 2);
+ 
+-SELECT ingredients.name, usda_number, uom_categories.category FROM ingredients
++SELECT ingredients.name, usda_number, uom_categories.category AS uom_type, ingr_categories.category AS ingr_category FROM ingredients
+ JOIN ingr_categories
+ ON ingr_categories.id = ingredients.ingr_category_id
+ JOIN uom_categories
+ ON ingredients.uom_categories_id = uom_categories.id;
+ 
+-SELECT id AS ingr_cat_id, category AS ingr_category FROM ingr_categories;
+\ No newline at end of file
++SELECT id AS ingr_cat_id, category AS ingr_category FROM ingr_categories;
++
++SELECT * FROM units
++WHERE uom_categories_id = 1;
+\ No newline at end of file
+warning: LF will be replaced by CRLF in restaurant_recipes.sql.
+The file will have its original line endings in your working directory.
