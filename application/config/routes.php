@@ -38,17 +38,17 @@
 |
 */
 
-$route['default_controller'] = "cloudrecipes";
-$route['goto_register'] = "cloudrecipes/goto_register";
-$route['register'] = "cloudrecipes/register";
-$route['signin'] = "cloudrecipes/signin_process";
-$route['logout'] = "cloudrecipes/logout";
-$route['new_ingredient'] = "cloudrecipes/new_ingredient_view";
-$route['add_new_ingr'] = "cloudrecipes/add_ingredients";
-$route['add_recipe'] = "cloudrecipes/add_recipe_view";
-$route['create_recipe'] = "cloudrecipes/add_recipes";
-$route['view_ingredients'] = "cloudrecipes/view_ingredients";
-$route['get_recipe_lists'] = "cloudrecipes/get_recipe_lists";
+$route['default_controller'] = "Cloudrecipes";
+$route['goto_register'] = "Cloudrecipes/goto_register";
+$route['register'] = "Cloudrecipes/register";
+$route['signin'] = "Cloudrecipes/signin_process";
+$route['logout'] = "Cloudrecipes/logout";
+$route['new_ingredient'] = "Cloudrecipes/new_ingredient_view";
+$route['add_new_ingr'] = "Cloudrecipes/add_ingredients";
+$route['add_recipe'] = "Cloudrecipes/add_recipe_view";
+$route['create_recipe'] = "Cloudrecipes/add_recipes";
+$route['view_ingredients'] = "Cloudrecipes/view_ingredients";
+$route['get_recipe_lists'] = "Cloudrecipes/get_recipe_lists";
 $route['404_override'] = '';
 
 
