@@ -38,7 +38,7 @@
 |
 */
 
-$route['default_controller'] = "welcome";
+$route['default_controller'] = "cloudrecipes";
 $route['goto_register'] = "cloudrecipes/goto_register";
 $route['register'] = "cloudrecipes/register";
 $route['signin'] = "cloudrecipes/signin_process";

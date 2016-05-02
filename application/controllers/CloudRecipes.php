@@ -5,7 +5,7 @@ class CloudRecipes extends CI_Controller{
 
 	public function index () {
 		$this->load->library('form_validation');
-		$this->load->view('welcome');
+		$this->load->view('main');
 		}
 
 	public function goto_register(){
